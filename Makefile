@@ -1,4 +1,4 @@
-.PHONY: sample transcribe plan plan-llm cut render verify review quickstart clean
+.PHONY: sample transcribe research plan plan-llm cut render verify review quickstart clean
 
 sample:
 	@echo "python3 sample/make_sample.py"
@@ -13,6 +13,10 @@ plan:
 	@echo "mkdir -p build/sample && python3 pipeline/plan.py sample/sample.words.json -o build/sample/cuts.draft.json --media sample/sample-16x9.mp4"
 	@mkdir -p build/sample
 	@python3 pipeline/plan.py sample/sample.words.json -o build/sample/cuts.draft.json --media sample/sample-16x9.mp4
+
+research:
+	@echo 'python3 pipeline/research.py "why editing takes longer than filming" --platform reels'
+	@python3 pipeline/research.py "why editing takes longer than filming" --platform reels
 
 plan-llm:
 	@echo "mkdir -p build/sample && python3 pipeline/plan_llm.py sample/sample.words.json -o build/sample/cuts.llm.json --media sample/sample-16x9.mp4"

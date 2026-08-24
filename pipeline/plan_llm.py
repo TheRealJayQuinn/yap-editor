@@ -24,12 +24,8 @@ Use `--dry-run` to print the exact request without a key or a network call.
 from __future__ import annotations
 
 import argparse
-import json
-import os
 import re
 import sys
-import urllib.error
-import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -39,11 +35,17 @@ from common import (
     safe_record_path,
     write_json,
 )
+from perplexity import (
+    DEFAULT_API_KEY_ENV,
+    DEFAULT_BASE_URL,
+    PerplexityError,
+    api_key as read_api_key,
+    chat,
+    extract_json_object,
+)
 
 
-DEFAULT_BASE_URL = "https://api.perplexity.ai"
 DEFAULT_MODEL = "sonar-pro"
-DEFAULT_API_KEY_ENV = "PERPLEXITY_API_KEY"
 
 SENTENCE_END = re.compile(r"[.!?][\"')\]]*$")
 
@@ -157,88 +159,6 @@ def build_messages(
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": "\n".join(parts)},
     ]
-
-
-def call_perplexity(
-    messages: Sequence[Dict[str, str]],
-    *,
-    api_key: str,
-    base_url: str,
-    model: str,
-    temperature: float,
-    max_tokens: int,
-    timeout: float,
-) -> str:
-    payload = {
-        "model": model,
-        "messages": list(messages),
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-    }
-    request = urllib.request.Request(
-        base_url.rstrip("/") + "/chat/completions",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            body = response.read().decode("utf-8")
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", "replace") if hasattr(exc, "read") else ""
-        raise RuntimeError(f"Perplexity API returned HTTP {exc.code}: {detail.strip() or exc.reason}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"could not reach {base_url}: {exc.reason}") from exc
-    try:
-        data = json.loads(body)
-        return data["choices"][0]["message"]["content"]
-    except (ValueError, KeyError, IndexError, TypeError) as exc:
-        raise RuntimeError(f"unexpected response shape from Perplexity API: {exc}") from exc
-
-
-def extract_json_object(content: str) -> Dict[str, Any]:
-    """Pull the first balanced JSON object out of a model response."""
-    text = content.strip()
-    fence = re.match(r"^```(?:json)?\s*(.*?)\s*```$", text, re.DOTALL)
-    if fence:
-        text = fence.group(1).strip()
-    try:
-        return json.loads(text)
-    except ValueError:
-        pass
-    start = text.find("{")
-    if start == -1:
-        raise RuntimeError("model response contained no JSON object")
-    depth = 0
-    in_string = False
-    escape = False
-    for index in range(start, len(text)):
-        char = text[index]
-        if in_string:
-            if escape:
-                escape = False
-            elif char == "\\":
-                escape = True
-            elif char == '"':
-                in_string = False
-            continue
-        if char == '"':
-            in_string = True
-        elif char == "{":
-            depth += 1
-        elif char == "}":
-            depth -= 1
-            if depth == 0:
-                snippet = text[start : index + 1]
-                try:
-                    return json.loads(snippet)
-                except ValueError as exc:
-                    raise RuntimeError(f"model returned malformed JSON: {exc}") from exc
-    raise RuntimeError("model response had an unbalanced JSON object")
 
 
 def nearest(value: float, boundaries: Sequence[float]) -> float:
@@ -368,25 +288,23 @@ def main() -> int:
         print(messages[1]["content"])
         return 0
 
-    api_key = os.environ.get(args.api_key_env, "").strip()
-    if not api_key:
-        print(
-            f"ERROR: no API key in ${args.api_key_env}. Set it, or use --dry-run to see the request.",
-            file=sys.stderr,
-        )
+    try:
+        key = read_api_key(args.api_key_env)
+    except PerplexityError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
     try:
-        content = call_perplexity(
+        content, _ = chat(
             messages,
-            api_key=api_key,
+            api_key=key,
             base_url=args.base_url,
             model=args.model,
             temperature=args.temperature,
             max_tokens=args.max_tokens,
             timeout=args.timeout,
         )
-    except RuntimeError as exc:
+    except PerplexityError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
@@ -397,7 +315,7 @@ def main() -> int:
 
     try:
         parsed = extract_json_object(content)
-    except RuntimeError as exc:
+    except PerplexityError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 

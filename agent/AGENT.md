@@ -79,6 +79,7 @@ Full commands in `knowledge/03-CUT-CRAFT.md`.
 ```
 transcribe.py   media -> words.json      word-level timestamps
 plan.py         words.json -> cuts.json  mechanical draft; you edit it
+plan_llm.py     words.json -> cuts.json  structural draft via an LLM; you check it
 assemble.py     cuts.json -> cut.mp4     frame-accurate cuts, concat, loudnorm, captions
 verify.py       cut.mp4 -> a verdict     duration, loudness, re-transcription diff
 ```

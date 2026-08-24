@@ -96,6 +96,26 @@ It cannot perform the other three, and does not pretend to:
 Those are yours. Make them by reordering and editing `segments`, marking each one
 `structural`, and writing the reason.
 
+## Or let `plan_llm.py` draft the structural layer
+
+`plan_llm.py` writes the same file, but does the three passes `plan.py` won't: it
+hands the transcript to an LLM (Perplexity's chat API) and asks for a reordered,
+reasoned cut — hook moved to `0:00`, filler and flubs dropped, tangents trimmed, every
+kept span carrying a `reason`. It emits `structural` segments, not `mechanical` ones.
+
+```bash
+export PERPLEXITY_API_KEY=pplx-...
+python3 pipeline/plan_llm.py build/sample/A.words.json \
+    -o build/sample/cuts.draft.json --media sample/sample-16x9.mp4 \
+    --focus "why editing takes longer than filming"
+```
+
+The model chooses *what* to keep and *in what order*; it never sets the exact frames.
+Every span it returns is snapped to a real word boundary from the transcript, so the
+word timestamps stay the authority for the cut. `--dry-run` prints the request without
+a key or a network call. The output is still a draft — read every reason against the
+focus before you ship it.
+
 ## Editing it by hand
 
 The three edits you will make most:

@@ -12,14 +12,6 @@
       ],
       "env": {}
     },
-    "composio": {
-      "type": "http",
-      "url": "https://connect.composio.dev/mcp"
-    },
-    "firecrawl": {
-      "type": "http",
-      "url": "https://mcp.firecrawl.dev/${FIRECRAWL_API_KEY}/v2/mcp"
-    },
     "perplexity": {
       "type": "http",
       "url": "https://api.perplexity.ai/mcp",
